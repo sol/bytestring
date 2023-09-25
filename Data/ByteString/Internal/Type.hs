@@ -25,6 +25,7 @@ module Data.ByteString.Internal.Type (
         -- * The @ByteString@ type and representation
         ByteString
         ( BS
+        , CBS
         , PS -- backwards compatibility shim
         ),
 
@@ -260,7 +261,7 @@ deferForeignPtrAvailability (ForeignPtr addr0# guts) = IO $ \s0 ->
 mkDeferredByteString :: ForeignPtr Word8 -> Int -> IO ByteString
 mkDeferredByteString fp len = do
   deferredFp <- deferForeignPtrAvailability fp
-  pure $! BS deferredFp len
+  pure $! CBS deferredFp len
 
 unsafeDupablePerformIO :: IO a -> a
 -- Why does this exist? In base-4.15.1.0 until at least base-4.18.0.0,
@@ -285,9 +286,19 @@ unsafeDupablePerformIO (IO act) = case runRW# act of (# _, res #) -> res
 -- "Data.ByteString.Char8" it can be interpreted as containing 8-bit
 -- characters.
 --
-data ByteString = BS {-# UNPACK #-} !(ForeignPtr Word8) -- payload
+data ByteString = FOO {-# UNPACK #-} !(ForeignPtr Word8) -- payload
                      {-# UNPACK #-} !Int                -- length
                      -- ^ @since 0.11.0.0
+
+pattern BS :: ForeignPtr Word8 -> Int -> ByteString
+pattern BS fp len <- FOO fp len
+
+pattern CBS :: ForeignPtr Word8 -> Int -> ByteString
+pattern CBS fp len = FOO fp len
+
+#if __GLASGOW_HASKELL__ >= 802
+{-# COMPLETE BS #-}
+#endif
 
 -- | Type synonym for the strict flavour of 'ByteString'.
 --
@@ -308,8 +319,8 @@ type StrictByteString = ByteString
 -- as the base will be manipulated by 'plusForeignPtr' instead.
 --
 pattern PS :: ForeignPtr Word8 -> Int -> Int -> ByteString
-pattern PS fp zero len <- BS fp ((0,) -> (zero, len)) where
-  PS fp o len = BS (plusForeignPtr fp o) len
+pattern PS fp zero len <- FOO fp ((0,) -> (zero, len)) where
+  PS fp o len = FOO (plusForeignPtr fp o) len
 #if __GLASGOW_HASKELL__ >= 802
 {-# COMPLETE PS #-}
 #endif
@@ -465,10 +476,10 @@ unsafePackAddress addr# = do
 unsafePackLenAddress :: Int -> Addr# -> IO ByteString
 unsafePackLenAddress len addr# = do
 #if __GLASGOW_HASKELL__ >= 811
-    return (BS (ForeignPtr addr# FinalPtr) len)
+    return (CBS (ForeignPtr addr# FinalPtr) len)
 #else
     p <- newForeignPtr_ (Ptr addr#)
-    return $ BS p len
+    return $ CBS p len
 #endif
 {-# INLINE unsafePackLenAddress #-}
 
@@ -499,13 +510,13 @@ unsafePackLiteral addr# =
 unsafePackLenLiteral :: Int -> Addr# -> ByteString
 unsafePackLenLiteral len addr# =
 #if __GLASGOW_HASKELL__ >= 811
-  BS (ForeignPtr addr# FinalPtr) len
+  CBS (ForeignPtr addr# FinalPtr) len
 #else
   -- newForeignPtr_ allocates a MutVar# internally. If that MutVar#
   -- gets commoned up with the MutVar# of some unrelated ForeignPtr,
   -- it may prevent automatic finalization for that other ForeignPtr.
   -- So we avoid accursedUnutterablePerformIO here.
-  BS (unsafeDupablePerformIO (newForeignPtr_ (Ptr addr#))) len
+  CBS (unsafeDupablePerformIO (newForeignPtr_ (Ptr addr#))) len
 #endif
 {-# INLINE unsafePackLenLiteral #-}
 
@@ -546,10 +557,10 @@ unpackChars bs = unpackAppendCharsLazy bs []
 
 unpackAppendBytesLazy :: ByteString -> [Word8] -> [Word8]
 unpackAppendBytesLazy (BS fp len) xs
-  | len <= 100 = unpackAppendBytesStrict (BS fp len) xs
-  | otherwise  = unpackAppendBytesStrict (BS fp 100) remainder
+  | len <= 100 = unpackAppendBytesStrict (CBS fp len) xs
+  | otherwise  = unpackAppendBytesStrict (CBS fp 100) remainder
   where
-    remainder  = unpackAppendBytesLazy (BS (plusForeignPtr fp 100) (len-100)) xs
+    remainder  = unpackAppendBytesLazy (CBS (plusForeignPtr fp 100) (len-100)) xs
 
   -- Why 100 bytes you ask? Because on a 64bit machine the list we allocate
   -- takes just shy of 4k which seems like a reasonable amount.
@@ -557,10 +568,10 @@ unpackAppendBytesLazy (BS fp len) xs
 
 unpackAppendCharsLazy :: ByteString -> [Char] -> [Char]
 unpackAppendCharsLazy (BS fp len) cs
-  | len <= 100 = unpackAppendCharsStrict (BS fp len) cs
-  | otherwise  = unpackAppendCharsStrict (BS fp 100) remainder
+  | len <= 100 = unpackAppendCharsStrict (CBS fp len) cs
+  | otherwise  = unpackAppendCharsStrict (CBS fp 100) remainder
   where
-    remainder  = unpackAppendCharsLazy (BS (plusForeignPtr fp 100) (len-100)) cs
+    remainder  = unpackAppendCharsLazy (CBS (plusForeignPtr fp 100) (len-100)) cs
 
 -- For these unpack functions, since we're unpacking the whole list strictly we
 -- build up the result list in an accumulator. This means we have to build up
@@ -610,14 +621,14 @@ fromForeignPtr :: ForeignPtr Word8
                -> Int -- ^ Offset
                -> Int -- ^ Length
                -> ByteString
-fromForeignPtr fp o = BS (plusForeignPtr fp o)
+fromForeignPtr fp o = CBS (plusForeignPtr fp o)
 {-# INLINE fromForeignPtr #-}
 
 -- | @since 0.11.0.0
 fromForeignPtr0 :: ForeignPtr Word8
                 -> Int -- ^ Length
                 -> ByteString
-fromForeignPtr0 = BS
+fromForeignPtr0 = CBS
 {-# INLINE fromForeignPtr0 #-}
 
 -- | /O(1)/ Deconstruct a ForeignPtr from a ByteString
@@ -805,7 +816,7 @@ compareBytes (BS fp1 len1) (BS fp2 len2) =
 empty :: ByteString
 -- This enables bypassing #457 by not using (polymorphic) mempty in
 -- any definitions used by the (Monoid ByteString) instance
-empty = BS nullForeignPtr 0
+empty = CBS nullForeignPtr 0
 
 append :: ByteString -> ByteString -> ByteString
 append (BS _   0)    b                  = b
@@ -921,7 +932,7 @@ stimesOverflowErr = overflowError "stimes"
 stimesNonNegativeInt :: Int -> ByteString -> ByteString
 stimesNonNegativeInt n (BS fp len)
   | n == 0 = empty
-  | n == 1 = BS fp len
+  | n == 1 = CBS fp len
   | len == 0 = empty
   | len == 1 = unsafeCreateFp n $ \destfptr -> do
       byte <- peekFp fp

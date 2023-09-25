@@ -266,9 +266,9 @@ eq Empty _     = False
 eq _     Empty = False
 eq (Chunk a@(S.BS ap al) as) (Chunk b@(S.BS bp bl) bs) =
   case compare al bl of
-    LT -> a == S.BS bp al && eq as (Chunk (S.BS (S.plusForeignPtr bp al) (bl - al)) bs)
+    LT -> a == S.CBS bp al && eq as (Chunk (S.CBS (S.plusForeignPtr bp al) (bl - al)) bs)
     EQ -> a == b && eq as bs
-    GT -> S.BS ap bl == b && eq (Chunk (S.BS (S.plusForeignPtr ap bl) (al - bl)) as) bs
+    GT -> S.CBS ap bl == b && eq (Chunk (S.CBS (S.plusForeignPtr ap bl) (al - bl)) as) bs
 
 cmp :: ByteString -> ByteString -> Ordering
 cmp Empty Empty = EQ
@@ -276,14 +276,14 @@ cmp Empty _     = LT
 cmp _     Empty = GT
 cmp (Chunk a@(S.BS ap al) as) (Chunk b@(S.BS bp bl) bs) =
   case compare al bl of
-    LT -> case compare a (S.BS bp al) of
-            EQ     -> cmp as (Chunk (S.BS (S.plusForeignPtr bp al) (bl - al)) bs)
+    LT -> case compare a (S.CBS bp al) of
+            EQ     -> cmp as (Chunk (S.CBS (S.plusForeignPtr bp al) (bl - al)) bs)
             result -> result
     EQ -> case compare a b of
             EQ     -> cmp as bs
             result -> result
-    GT -> case compare (S.BS ap bl) b of
-            EQ     -> cmp (Chunk (S.BS (S.plusForeignPtr ap bl) (al - bl)) as) bs
+    GT -> case compare (S.CBS ap bl) b of
+            EQ     -> cmp (Chunk (S.CBS (S.plusForeignPtr ap bl) (al - bl)) as) bs
             result -> result
 
 append :: ByteString -> ByteString -> ByteString

@@ -486,7 +486,7 @@ toShortIO (BS fptr len) = do
 --
 fromShort :: ShortByteString -> ByteString
 fromShort (unSBS -> b#)
-  | isPinned b# = BS fp len
+  | isPinned b# = CBS fp len
   where
     addr# = byteArrayContents# b#
     fp = ForeignPtr addr# (PlainPtr (unsafeCoerce# b#))
@@ -500,7 +500,7 @@ fromShortIO sbs = do
     stToIO (copyByteArray (asBA sbs) 0 mba 0 len)
     let fp = ForeignPtr (byteArrayContents# (unsafeCoerce# mba#))
                         (PlainPtr mba#)
-    return (BS fp len)
+    return (CBS fp len)
 
 -- | /O(1)/ Convert a 'Word8' into a 'ShortByteString'
 --

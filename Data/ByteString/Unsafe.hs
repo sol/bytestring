@@ -112,25 +112,25 @@ unsafeIndex (BS x l) i = assert (i >= 0 && i < l) $
 -- | A variety of 'take' which omits the checks on @n@ so there is an
 -- obligation on the programmer to provide a proof that @0 <= n <= 'length' xs@.
 unsafeTake :: Int -> ByteString -> ByteString
-unsafeTake n (BS x l) = assert (0 <= n && n <= l) $ BS x n
+unsafeTake n (BS x l) = assert (0 <= n && n <= l) $ CBS x n
 {-# INLINE unsafeTake #-}
 
 -- | A variety of 'takeEnd' which omits the checks on @n@ so there is an
 -- obligation on the programmer to provide a proof that @0 <= n <= 'length' xs@.
 unsafeTakeEnd :: Int -> ByteString -> ByteString
-unsafeTakeEnd n (BS x l) = assert (0 <= n && n <= l) $ BS (plusForeignPtr x (l-n)) n
+unsafeTakeEnd n (BS x l) = assert (0 <= n && n <= l) $ CBS (plusForeignPtr x (l-n)) n
 {-# INLINE unsafeTakeEnd #-}
 
 -- | A variety of 'drop' which omits the checks on @n@ so there is an
 -- obligation on the programmer to provide a proof that @0 <= n <= 'length' xs@.
 unsafeDrop  :: Int -> ByteString -> ByteString
-unsafeDrop n (BS x l) = assert (0 <= n && n <= l) $ BS (plusForeignPtr x n) (l-n)
+unsafeDrop n (BS x l) = assert (0 <= n && n <= l) $ CBS (plusForeignPtr x n) (l-n)
 {-# INLINE unsafeDrop #-}
 
 -- | A variety of 'dropEnd' which omits the checks on @n@ so there is an
 -- obligation on the programmer to provide a proof that @0 <= n <= 'length' xs@.
 unsafeDropEnd  :: Int -> ByteString -> ByteString
-unsafeDropEnd n (BS x l) = assert (0 <= n && n <= l) $ BS x (l-n)
+unsafeDropEnd n (BS x l) = assert (0 <= n && n <= l) $ CBS x (l-n)
 {-# INLINE unsafeDropEnd #-}
 
 -- | /O(1)/ 'unsafePackAddressLen' provides constant-time construction of
@@ -153,7 +153,7 @@ unsafeDropEnd n (BS x l) = assert (0 <= n && n <= l) $ BS x (l-n)
 unsafePackAddressLen :: Int -> Addr# -> IO ByteString
 unsafePackAddressLen len addr# = do
     p <- newForeignPtr_ (Ptr addr#)
-    return $ BS p len
+    return $ CBS p len
 {-# INLINE unsafePackAddressLen #-}
 
 -- | /O(1)/ Construct a 'ByteString' given a Ptr Word8 to a buffer, a
@@ -168,7 +168,7 @@ unsafePackAddressLen len addr# = do
 unsafePackCStringFinalizer :: Ptr Word8 -> Int -> IO () -> IO ByteString
 unsafePackCStringFinalizer p l f = do
     fp <- FC.newForeignPtr p f
-    return $ BS fp l
+    return $ CBS fp l
 
 -- | Explicitly run the finaliser associated with a 'ByteString'.
 -- References to this value after finalisation may generate invalid memory
@@ -198,7 +198,7 @@ unsafePackCString :: CString -> IO ByteString
 unsafePackCString cstr = do
     fp <- newForeignPtr_ (castPtr cstr)
     l <- c_strlen cstr
-    return $! BS fp (fromIntegral l)
+    return $! CBS fp (fromIntegral l)
 
 -- | /O(1)/ Build a 'ByteString' from a 'CStringLen'. This value will
 -- have /no/ finalizer associated with it, and will not be garbage
@@ -212,7 +212,7 @@ unsafePackCString cstr = do
 unsafePackCStringLen :: CStringLen -> IO ByteString
 unsafePackCStringLen (ptr,len) = do
     fp <- newForeignPtr_ (castPtr ptr)
-    return $! BS fp (fromIntegral len)
+    return $! CBS fp (fromIntegral len)
 
 -- | /O(n)/ Build a 'ByteString' from a malloced 'CString'. This value will
 -- have a @free(3)@ finalizer associated to it.
@@ -229,7 +229,7 @@ unsafePackMallocCString :: CString -> IO ByteString
 unsafePackMallocCString cstr = do
     fp <- newForeignPtr c_free_finalizer (castPtr cstr)
     len <- c_strlen cstr
-    return $! BS fp (fromIntegral len)
+    return $! CBS fp (fromIntegral len)
 
 -- | /O(1)/ Build a 'ByteString' from a malloced 'CStringLen'. This
 -- value will have a @free(3)@ finalizer associated to it.
@@ -245,7 +245,7 @@ unsafePackMallocCString cstr = do
 unsafePackMallocCStringLen :: CStringLen -> IO ByteString
 unsafePackMallocCStringLen (cstr, len) = do
     fp <- newForeignPtr c_free_finalizer (castPtr cstr)
-    return $! BS fp len
+    return $! CBS fp len
 
 -- ---------------------------------------------------------------------
 

@@ -177,7 +177,7 @@ newBuffer size = do
 {-# INLINE byteStringFromBuffer #-}
 byteStringFromBuffer :: Buffer -> S.ByteString
 byteStringFromBuffer (Buffer fpbuf (BufferRange op _)) =
-    S.BS fpbuf (op `minusPtr` unsafeForeignPtrToPtr fpbuf)
+    S.CBS fpbuf (op `minusPtr` unsafeForeignPtrToPtr fpbuf)
 
 -- | Prepend the filled part of a 'Buffer' to a lazy 'L.ByteString'
 -- trimming it if necessary.
@@ -1129,7 +1129,7 @@ buildStepToCIOS (AllocationStrategy nextBuffer bufSize trim) =
               -- we re-use the old buffer and consider it empty.
               return $ Yield1 bs (mkCIOS True)
           | otherwise            =
-              return $ Yield1 (S.BS fpbuf chunkSize) (mkCIOS False)
+              return $ Yield1 (S.CBS fpbuf chunkSize) (mkCIOS False)
           where
             chunkSize = op' `minusPtr` pbuf
             size      = pe  `minusPtr` pbuf

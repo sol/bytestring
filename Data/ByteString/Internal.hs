@@ -22,6 +22,7 @@ module Data.ByteString.Internal (
         -- * The @ByteString@ type and representation
         ByteString
         ( BS
+        , CBS
         , PS -- backwards compatibility shim
         ),
 

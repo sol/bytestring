@@ -744,7 +744,7 @@ mapAccumL f acc = \(BS a len) -> unsafeDupablePerformIO $ do
                   pokeFpByteOff dst n y
                   mapAccumL_ s' (n+1)
     acc' <- go a gp
-    return (acc', BS gp len)
+    return (acc', CBS gp len)
 {-# INLINE mapAccumL #-}
 
 -- | The 'mapAccumR' function behaves like a combination of 'map' and
@@ -765,7 +765,7 @@ mapAccumR f acc = \(BS a len) -> unsafeDupablePerformIO $ do
               pokeFpByteOff dst n y
               mapAccumR_ s' (n-1)
     acc' <- go a gp
-    return (acc', BS gp len)
+    return (acc', CBS gp len)
 {-# INLINE mapAccumR #-}
 
 -- ---------------------------------------------------------------------
@@ -1159,11 +1159,11 @@ splitWith predicate (BS fp len) = splitWith0 0 len fp
         splitLoop idx2 off' len' fp' = go idx2
           where
             go idx'
-                | idx' >= len'  = return [BS (plusForeignPtr fp' off') idx']
+                | idx' >= len'  = return [CBS (plusForeignPtr fp' off') idx']
                 | otherwise = do
                     w <- peekFpByteOff fp (off'+idx')
                     if predicate w
-                       then return (BS (plusForeignPtr fp' off') idx' :
+                       then return (CBS (plusForeignPtr fp' off') idx' :
                                   splitWith0 (off'+idx'+1) (len'-idx'-1) fp')
                        else go (idx'+1)
 {-# INLINE splitWith #-}
@@ -1201,7 +1201,7 @@ split w ps@(BS x l) = loop 0
 {-# INLINE split #-}
 
 unsafeSlice  :: Int -> Int -> ByteString -> ByteString
-unsafeSlice a b (BS x _) = BS (plusForeignPtr x a) (b - a)
+unsafeSlice a b (BS x _) = CBS (plusForeignPtr x a) (b - a)
 {-# INLINE unsafeSlice #-}
 
 -- | The 'group' function takes a ByteString and returns a list of
@@ -1470,8 +1470,8 @@ partition f s = unsafeDupablePerformIO $
               mid <- sep 0 p end
               rev mid end
               let i = mid `minusForeignPtr` p
-              return (BS p i,
-                      BS (p `plusForeignPtr` i) (len - i))
+              return (CBS p i,
+                      CBS (p `plusForeignPtr` i) (len - i))
   where
     len  = length s
     incr = (`plusForeignPtr` 1)
@@ -2027,7 +2027,7 @@ hGetContentsSizeHint hnd =
     readChunks chunks sz sz' = do
       fp        <- mallocByteString sz
       readcount <- unsafeWithForeignPtr fp $ \buf -> hGetBuf hnd buf sz
-      let chunk = BS fp readcount
+      let chunk = CBS fp readcount
       -- We rely on the hGetBuf behaviour (not hGetBufSome) where it reads up
       -- to the size we ask for, or EOF. So short reads indicate EOF.
       if readcount < sz && sz > 0
