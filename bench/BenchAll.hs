@@ -387,6 +387,11 @@ main = do
       , bench "intercalate (small)" $ whnf (S.intercalate $ S8.pack "&") (replicate 30 (S8.pack "foo"))
       , bench "intercalate (tiny)" $ whnf (S.intercalate $ S8.pack "&") (S8.pack <$> ["foo", "bar", "baz"])
       ]
+    , bgroup "split"
+      [ bench "split (large)" $ nf (S.split 5) (S.concat $ replicate 300 $ S.pack [1..9])
+      , bench "split (small)" $ nf (S.split 5) (S.concat $ replicate 30 $ S.pack [1..9])
+      , bench "split (tiny)"  $ nf (S.split 5) (S.pack [1..9])
+      ]
     , bgroup "partition"
       [
         bgroup "strict"
