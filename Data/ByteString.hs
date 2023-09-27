@@ -669,8 +669,8 @@ any f (BS x len) = accursedUnutterablePerformIO $ g x
 
 -- | Is any element of 'ByteString' equal to c?
 anyByte :: Word8 -> ByteString -> Bool
-anyByte c (BS x l) = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> do
-    q <- memchr p c (fromIntegral l)
+anyByte c = unsafeWithContents $ \p l -> do
+    q <- memchr p c l
     return $! q /= nullPtr
 {-# INLINE anyByte #-}
 
@@ -702,20 +702,26 @@ all f (BS x len) = accursedUnutterablePerformIO $ g x
 -- | /O(n)/ 'maximum' returns the maximum value from a 'ByteString'
 -- An exception will be thrown in the case of an empty ByteString.
 maximum :: HasCallStack => ByteString -> Word8
-maximum xs@(BS x l)
+maximum xs
     | null xs   = errorEmptyList "maximum"
-    | otherwise = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p ->
-                      c_maximum p (fromIntegral l)
+    | otherwise = unsafeWithContents c_maximum xs
 {-# INLINE maximum #-}
 
 -- | /O(n)/ 'minimum' returns the minimum value from a 'ByteString'
 -- An exception will be thrown in the case of an empty ByteString.
 minimum :: HasCallStack => ByteString -> Word8
-minimum xs@(BS x l)
+minimum xs
     | null xs   = errorEmptyList "minimum"
-    | otherwise = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p ->
-                      c_minimum p (fromIntegral l)
+    | otherwise = unsafeWithContents c_minimum xs
 {-# INLINE minimum #-}
+
+unsafeWithContents :: (Ptr Word8 -> CSize -> IO a) -> ByteString -> a
+unsafeWithContents f (BS x l) = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> f p (fromIntegral l)
+{-# INLINE unsafeWithContents #-}
+
+unsafeWithContents_ :: (Ptr Word8 -> Int -> IO a) -> ByteString -> a
+unsafeWithContents_ f (BS x l) = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> f p l
+{-# INLINE unsafeWithContents_ #-}
 
 ------------------------------------------------------------------------
 
@@ -1095,10 +1101,9 @@ span p = break (not . p)
 -- > span  (==99) "abcd" == spanByte 99 "abcd" -- fromEnum 'c' == 99
 --
 spanByte :: Word8 -> ByteString -> (ByteString, ByteString)
-spanByte c ps@(BS x l) =
-    accursedUnutterablePerformIO $  unsafeWithForeignPtr x g
+spanByte c ps = unsafeWithContents_ g ps
   where
-    g p = go 0
+    g p l = go 0
       where
         go !i | i >= l    = return (ps, empty)
               | otherwise = do c' <- peekByteOff p i
@@ -1285,8 +1290,8 @@ indexMaybe ps n
 -- element, or 'Nothing' if there is no such element.
 -- This implementation uses memchr(3).
 elemIndex :: Word8 -> ByteString -> Maybe Int
-elemIndex c (BS x l) = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> do
-    q <- memchr p c (fromIntegral l)
+elemIndex c = unsafeWithContents $ \ p l -> do
+    q <- memchr p c l
     return $! if q == nullPtr then Nothing else Just $! q `minusPtr` p
 {-# INLINE elemIndex #-}
 
@@ -1323,8 +1328,8 @@ elemIndices w (BS x l) = loop 0
 --
 -- But more efficiently than using length on the intermediate list.
 count :: Word8 -> ByteString -> Int
-count w (BS x m) = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p ->
-    fromIntegral <$> c_count p (fromIntegral m) w
+count w = unsafeWithContents $ \p m ->
+    fromIntegral <$> c_count p m w
 {-# INLINE count #-}
 
 -- | /O(n)/ The 'findIndex' function takes a predicate and a 'ByteString' and
@@ -1547,7 +1552,7 @@ isInfixOf p s = null p || not (null $ snd $ breakSubstring p s)
 --
 -- @since 0.11.2.0
 isValidUtf8 :: ByteString -> Bool
-isValidUtf8 (BS ptr len) = accursedUnutterablePerformIO $ unsafeWithForeignPtr ptr $ \p -> do
+isValidUtf8 = unsafeWithContents $ \p len -> do
   -- Use a safe FFI call for large inputs to avoid GC synchronization pauses
   -- in multithreaded contexts.
   -- This specific limit was chosen based on results of a simple benchmark, see:
@@ -1555,8 +1560,8 @@ isValidUtf8 (BS ptr len) = accursedUnutterablePerformIO $ unsafeWithForeignPtr p
   -- When changing this function, also consider changing the related function:
   -- Data.ByteString.Short.Internal.isValidUtf8
   i <- if len < 1000000
-     then cIsValidUtf8 p (fromIntegral len)
-     else cIsValidUtf8Safe p (fromIntegral len)
+     then cIsValidUtf8 p len
+     else cIsValidUtf8Safe p len
   pure $ i /= 0
 
 -- We import bytestring_is_valid_utf8 both unsafe and safe. For small inputs
