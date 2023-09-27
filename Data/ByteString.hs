@@ -379,7 +379,7 @@ toFilePath path = do
 
 -- | /O(1)/ Test whether a ByteString is empty.
 null :: ByteString -> Bool
-null (BS _ l) = assert (l >= 0) $ l <= 0
+null ps = length ps <= 0
 {-# INLINE null #-}
 
 -- ---------------------------------------------------------------------
@@ -413,9 +413,9 @@ snoc (BS x len) c = unsafeCreateFp (checkedAdd "snoc" len 1) $ \p -> do
 --
 -- This is a partial function, consider using 'uncons' instead.
 head :: HasCallStack => ByteString -> Word8
-head (BS x l)
-    | l <= 0    = errorEmptyList "head"
-    | otherwise = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> peek p
+head ps
+    | length ps <= 0 = errorEmptyList "head"
+    | otherwise = unsafeHead ps
 {-# INLINE head #-}
 
 -- | /O(1)/ Extract the elements after the head of a ByteString, which must be non-empty.
@@ -425,17 +425,15 @@ head (BS x l)
 tail :: HasCallStack => ByteString -> ByteString
 tail ps
     | length ps <= 0 = errorEmptyList "tail"
-    | otherwise = unsafeDrop 1 ps
+    | otherwise = unsafeTail ps
 {-# INLINE tail #-}
 
 -- | /O(1)/ Extract the 'head' and 'tail' of a ByteString, returning 'Nothing'
 -- if it is empty.
 uncons :: ByteString -> Maybe (Word8, ByteString)
-uncons ps@(BS x l)
-    | l <= 0    = Nothing
-    | otherwise = Just (accursedUnutterablePerformIO $ unsafeWithForeignPtr x
-                                                     $ \p -> peek p,
-                        unsafeDrop 1 ps)
+uncons ps
+    | length ps <= 0 = Nothing
+    | otherwise = Just (unsafeHead ps, unsafeTail ps)
 {-# INLINE uncons #-}
 
 -- | /O(1)/ Extract the last element of a ByteString, which must be finite and non-empty.
@@ -443,10 +441,9 @@ uncons ps@(BS x l)
 --
 -- This is a partial function, consider using 'unsnoc' instead.
 last :: HasCallStack => ByteString -> Word8
-last ps@(BS x l)
+last ps
     | null ps   = errorEmptyList "last"
-    | otherwise = accursedUnutterablePerformIO $
-                    unsafeWithForeignPtr x $ \p -> peekByteOff p (l-1)
+    | otherwise = unsafeLast ps
 {-# INLINE last #-}
 
 -- | /O(1)/ Returns all the elements of a 'ByteString' except the last one.
@@ -456,17 +453,15 @@ last ps@(BS x l)
 init :: HasCallStack => ByteString -> ByteString
 init ps
     | null ps   = errorEmptyList "init"
-    | otherwise = unsafeDropEnd 1 ps
+    | otherwise = unsafeInit ps
 {-# INLINE init #-}
 
 -- | /O(1)/ Extract the 'init' and 'last' of a ByteString, returning 'Nothing'
 -- if it is empty.
 unsnoc :: ByteString -> Maybe (ByteString, Word8)
-unsnoc ps@(BS x l)
-    | l <= 0    = Nothing
-    | otherwise = Just (unsafeDropEnd 1 ps,
-                        accursedUnutterablePerformIO $
-                          unsafeWithForeignPtr x $ \p -> peekByteOff p (l-1))
+unsnoc ps
+    | length ps <= 0 = Nothing
+    | otherwise = Just (unsafeInit ps, unsafeLast ps)
 {-# INLINE unsnoc #-}
 
 -- | /O(n)/ Append two ByteStrings

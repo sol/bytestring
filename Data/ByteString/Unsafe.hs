@@ -82,14 +82,14 @@ unsafeHead (BS x l) = assert (l > 0) $
 -- check for the empty case. As with 'unsafeHead', the programmer must
 -- provide a separate proof that the ByteString is non-empty.
 unsafeTail :: ByteString -> ByteString
-unsafeTail (BS ps l) = assert (l > 0) $ BS (plusForeignPtr ps 1) (l-1)
+unsafeTail = unsafeDrop 1
 {-# INLINE unsafeTail #-}
 
 -- | A variety of 'init' for non-empty ByteStrings. 'unsafeInit' omits the
 -- check for the empty case. As with 'unsafeHead', the programmer must
 -- provide a separate proof that the ByteString is non-empty.
 unsafeInit :: ByteString -> ByteString
-unsafeInit (BS ps l) = assert (l > 0) $ BS ps (l-1)
+unsafeInit = unsafeDropEnd 1
 {-# INLINE unsafeInit #-}
 
 -- | A variety of 'last' for non-empty ByteStrings. 'unsafeLast' omits the
