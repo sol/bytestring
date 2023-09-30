@@ -6,6 +6,7 @@
 {-# LANGUAGE NamedFieldPuns #-}
 {-# LANGUAGE TupleSections #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 -- |
 -- Module      : Data.ByteString
@@ -1187,17 +1188,10 @@ splitWith predicate (BS fp len) = splitWith0 0 len fp
 --
 split :: Word8 -> ByteString -> [ByteString]
 split _ (BS _ 0) = []
-split w ps@(BS x l) = loop 0
+split w ps = onElemIndices step done w ps
     where
-        loop !n =
-            let q = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p ->
-                      memchr (p `plusPtr` n)
-                             w (fromIntegral (l-n))
-            in if q == nullPtr
-                then [unsafeDrop n ps]
-                else let i = q `minusPtr` unsafeForeignPtrToPtr x
-                      in unsafeSlice n i ps : loop (i+1)
-
+        done start = [unsafeDrop start ps]
+        step start end = unsafeSlice start end ps
 {-# INLINE split #-}
 
 unsafeSlice  :: Int -> Int -> ByteString -> ByteString
@@ -1290,10 +1284,15 @@ indexMaybe ps n
 -- element, or 'Nothing' if there is no such element.
 -- This implementation uses memchr(3).
 elemIndex :: Word8 -> ByteString -> Maybe Int
-elemIndex c = unsafeWithContents $ \ p l -> do
-    q <- memchr p c l
-    return $! if q == nullPtr then Nothing else Just $! q `minusPtr` p
+elemIndex w ps = let n = elemIndexOff 0 w ps in if n == -1 then Nothing else Just n
 {-# INLINE elemIndex #-}
+
+elemIndexOff :: Int -> Word8 -> ByteString -> Int
+elemIndexOff offset w = unsafeWithContents_ $ \p l -> do
+    q <- memchr (p `plusPtr` offset) w (fromIntegral (l-offset))
+    return $! if q == nullPtr then -1 else  q `minusPtr` p
+
+{-# INLINE elemIndexOff #-}
 
 -- | /O(n)/ The 'elemIndexEnd' function returns the last index of the
 -- element in the given 'ByteString' which is equal to the query
@@ -1312,15 +1311,20 @@ elemIndexEnd = findIndexEnd . (==)
 -- the indices of all elements equal to the query element, in ascending order.
 -- This implementation uses memchr(3).
 elemIndices :: Word8 -> ByteString -> [Int]
-elemIndices w (BS x l) = loop 0
+elemIndices = onElemIndices step done
     where
-        loop !n = accursedUnutterablePerformIO $ unsafeWithForeignPtr x $ \p -> do
-            q <- memchr (p `plusPtr` n) w (fromIntegral (l - n))
-            if q == nullPtr
-                then return []
-                else let !i = q `minusPtr` p
-                      in return $ i : loop (i + 1)
+      done _ = []
+      step _ = id
 {-# INLINE elemIndices #-}
+
+onElemIndices :: (Int -> Int -> a) -> (Int -> [a]) -> Word8 -> ByteString -> [a]
+onElemIndices step done w ps = loop 0
+    where
+        loop !n =
+            let i = elemIndexOff n w ps
+            in if i == -1 then done n else step n i : loop (i+1)
+
+{-# INLINE onElemIndices #-}
 
 -- | count returns the number of times its argument appears in the ByteString
 --
